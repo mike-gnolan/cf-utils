@@ -1,6 +1,5 @@
 const _chai = require("chai");
 const expect = _chai.expect;
-_chai.use(require('chai-as-promised'));
 const rewire = require("rewire");
 const { mockClient } = require("aws-sdk-client-mock");
 const { mockConfig } = require("./stubs");
@@ -36,7 +35,7 @@ describe("src/parameterStore", () => {
   });
 
   // Put Parameter
-  it("puts parameter", async () => {
+  it("puts parameter", (done) => {
     const param = {
       Name: "ssm-param-name",
       Value: "SOME_VALUE"
@@ -47,12 +46,17 @@ describe("src/parameterStore", () => {
       return {};
     });
 
-    return expect(parameterStore.putParameter(param)).to.eventually.deep.equal(param.Name);
+    parameterStore.putParameter(param)
+      .then(result => {
+        expect(result).to.deep.equal(param.Name);
+        done();
+      })
+      .catch(done);
   });
 
   describe("get parameter", () => {
     // Get Parameter
-    it("gets parameter", async () => {
+    it("gets parameter", (done) => {
       const param = {
         Name: "ssm-param-name",
         Value: "SOME_VALUE"
@@ -66,11 +70,16 @@ describe("src/parameterStore", () => {
         return { Parameters: [param] };
       });
 
-      return expect(parameterStore.getParameter(param.Name)).to.eventually.deep.equal(param);
+      parameterStore.getParameter(param.Name)
+        .then(result => {
+          expect(result).to.deep.equal(param);
+          done();
+        })
+        .catch(done);
     });
 
     // Parameter not found
-    it("parameter not found", async () => {
+    it("parameter not found", (done) => {
       const param = {
         Name: "ssm-param-name",
         Value: "SOME_VALUE"
@@ -80,9 +89,18 @@ describe("src/parameterStore", () => {
         .resolvesOnce({ Parameters: [] })
         .resolvesOnce({});
 
-      await expect(parameterStore.getParameter(param.Name)).to.eventually.be.rejectedWith("Parameter not found");
-
-      await expect(parameterStore.getParameter(param.Name)).to.eventually.be.rejectedWith("Parameter not found");
+      parameterStore.getParameter(param.Name)
+        .then(() => done(new Error('Expected rejection')))
+        .catch(err => {
+          expect(err.message).to.equal("Parameter not found");
+          return parameterStore.getParameter(param.Name);
+        })
+        .then(() => done(new Error('Expected rejection')))
+        .catch(err => {
+          expect(err.message).to.equal("Parameter not found");
+          done();
+        })
+        .catch(done);
     });
   });
 
@@ -90,7 +108,7 @@ describe("src/parameterStore", () => {
   describe("check parameter", () => {
 
     // Finds parameter
-    it("parameter found", async () => {
+    it("parameter found", (done) => {
       const param = {
         Name: "ssm-param-name",
         Value: "SOME_VALUE"
@@ -101,11 +119,16 @@ describe("src/parameterStore", () => {
         return { Parameters: [param] };
       });
 
-      return expect(parameterStore.checkParameter(param.Name)).to.eventually.be.true;
+      parameterStore.checkParameter(param.Name)
+        .then(result => {
+          expect(result).to.be.true;
+          done();
+        })
+        .catch(done);
     });
 
     // Cannot find parameter
-    it("parameter not found", async () => {
+    it("parameter not found", (done) => {
       const param = {
         Name: "ssm-param-name",
         Value: "SOME_VALUE"
@@ -118,17 +141,18 @@ describe("src/parameterStore", () => {
       parameterStore.checkParameter(param.Name)
         .then(res => {
           expect(res).to.be.false;
+          return parameterStore.checkParameter(param.Name);
         })
-        .catch(err => {
-          done(err);
-        });
-
-      return expect(parameterStore.checkParameter(param.Name)).to.eventually.be.false;
+        .then(res => {
+          expect(res).to.be.false;
+          done();
+        })
+        .catch(done);
     });
   });
 
   // Finds parameter
-  it("deletes parameter", async () => {
+  it("deletes parameter", (done) => {
     const param = {
       Name: "ssm-param-name"
     };
@@ -138,7 +162,12 @@ describe("src/parameterStore", () => {
       return {};
     });
 
-    return expect(parameterStore.deleteParameter(param.Name)).to.eventually.deep.equal(param.Name);
+    parameterStore.deleteParameter(param.Name)
+      .then(result => {
+        expect(result).to.deep.equal(param.Name);
+        done();
+      })
+      .catch(done);
   });
 
 });

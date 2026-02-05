@@ -1,6 +1,5 @@
 const _chai = require("chai");
 const expect = _chai.expect;
-_chai.use(require('chai-as-promised'));
 const rewire = require("rewire");
 const { mockClient } = require("aws-sdk-client-mock");
 const { mockConfig } = require("./stubs");
@@ -44,7 +43,7 @@ describe("src/kinesis", () => {
   });
 
   // createParquetConversion
-  it("creates parquet conversion", async () => {
+  it("creates parquet conversion", (done) => {
     const deliveryStreamName = "delivery-stream-1";
     const databaseName = "glue-bd";
     const tableName = "glue-table";
@@ -102,11 +101,16 @@ describe("src/kinesis", () => {
       return {};
     });
 
-    return expect(kinesis.createParquetConversion(deliveryStreamName, databaseName, tableName)).to.eventually.deep.equal({});
+    kinesis.createParquetConversion(deliveryStreamName, databaseName, tableName)
+      .then(result => {
+        expect(result).to.deep.equal({});
+        done();
+      })
+      .catch(done);
   });
 
   // tagFirehoseStream
-  it("tags firehose stream", async () => {
+  it("tags firehose stream", (done) => {
     const firehose = "firehose-stream"
     const tags = [{ Key: 'test:project', Value: "test.project" }];
 
@@ -127,13 +131,20 @@ describe("src/kinesis", () => {
       return {};
     });
 
-    await expect(kinesis.tagFirehoseStream(firehose)).to.eventually.deep.equal({});
-
-    await expect(kinesis.tagFirehoseStream(`${firehose}-tags`, tags)).to.eventually.deep.equal({});
+    kinesis.tagFirehoseStream(firehose)
+      .then(result => {
+        expect(result).to.deep.equal({});
+        return kinesis.tagFirehoseStream(`${firehose}-tags`, tags);
+      })
+      .then(result => {
+        expect(result).to.deep.equal({});
+        done();
+      })
+      .catch(done);
   });
 
   // startApplication
-  it("starts application", async () => {
+  it("starts application", (done) => {
     const application = "my-application";
     const appId = "app12bcd9"
 
@@ -153,7 +164,12 @@ describe("src/kinesis", () => {
         return {};
       });
 
-    return expect(kinesis.startApplication(application)).to.eventually.deep.equal({});
+    kinesis.startApplication(application)
+      .then(result => {
+        expect(result).to.deep.equal({});
+        done();
+      })
+      .catch(done);
   });
 
 });

@@ -1,6 +1,5 @@
 const _chai = require("chai");
 const expect = _chai.expect;
-_chai.use(require('chai-as-promised'));
 const rewire = require("rewire");
 const { mockClient } = require("aws-sdk-client-mock");
 const { mockConfig } = require("./stubs");
@@ -35,7 +34,7 @@ describe("src/glue", () => {
   });
 
   // Create Partitions -Success
-  it("creates partitions - success", async () => {
+  it("creates partitions - success", (done) => {
     const database = "glue-db";
     const table = "glue-table";
     const label = "data-label";
@@ -79,11 +78,16 @@ describe("src/glue", () => {
       return { Errors: [] };
     });
 
-    return expect(glue.createPartitions(database, table, label, start, days, format, catalogId)).to.eventually.deep.equal([{ Errors: [] }]);
+    glue.createPartitions(database, table, label, start, days, format, catalogId)
+      .then(result => {
+        expect(result).to.deep.equal([{ Errors: [] }]);
+        done();
+      })
+      .catch(done);
   });
 
   // Create Partitions - success with errors
-  it("creates partitions - success with errors", async () => {
+  it("creates partitions - success with errors", (done) => {
     const database = "glue-db";
     const table = "glue-table";
     const label = "data-label";
@@ -118,13 +122,18 @@ describe("src/glue", () => {
       return { Errors: [{ ErrorDetail: { ErrorCode: "AlreadyExistsException", }, }] };
     });
 
-    return expect(glue.createPartitions(database, table, label, start, days, format, catalogId)).to.eventually.deep.equal([
-      { Errors: [{ ErrorDetail: { ErrorCode: "AlreadyExistsException", }, }] }
-    ]);
+    glue.createPartitions(database, table, label, start, days, format, catalogId)
+      .then(result => {
+        expect(result).to.deep.equal([
+          { Errors: [{ ErrorDetail: { ErrorCode: "AlreadyExistsException", }, }] }
+        ]);
+        done();
+      })
+      .catch(done);
   });
 
   // Create Partitions - failure
-  it("failed to create partitions", async () => {
+  it("failed to create partitions", (done) => {
     const database = "glue-db";
     const table = "glue-table";
     const label = "data-label";
@@ -158,11 +167,13 @@ describe("src/glue", () => {
       return { Errors: [{ ErrorDetail: { ErrorCode: "SomeOtherGlueError" } }] };
     });
 
-    try {
-      await glue.createPartitions(database, table, label, start, days, format, catalogId);
-    } catch (err) {
-      expect(err).to.eql({ ErrorDetail: { ErrorCode: "SomeOtherGlueError" } });
-    }
+    glue.createPartitions(database, table, label, start, days, format, catalogId)
+      .then(() => done(new Error('Expected rejection')))
+      .catch(err => {
+        expect(err).to.eql({ ErrorDetail: { ErrorCode: "SomeOtherGlueError" } });
+        done();
+      })
+      .catch(done);
   });
 
 });

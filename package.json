@@ -1,6 +1,6 @@
 {
   "name": "cf-utils",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Tools and utilities to help build task runner style deployment pipelines with AWS CloudFormation",
   "author": "David Boland",
   "license": "Unlicense",
@@ -12,33 +12,32 @@
     "test": "mocha ./test/*.spec.js"
   },
   "dependencies": {
-    "@aws-sdk/client-cloudformation": "^3.637.0",
-    "@aws-sdk/client-cloudwatch-logs": "^3.637.0",
-    "@aws-sdk/client-cognito-identity-provider": "^3.637.0",
-    "@aws-sdk/client-ec2": "^3.637.0",
-    "@aws-sdk/client-firehose": "^3.637.0",
-    "@aws-sdk/client-glue": "^3.637.0",
-    "@aws-sdk/client-iam": "^3.637.0",
-    "@aws-sdk/client-iot": "^3.637.0",
-    "@aws-sdk/client-kinesis-analytics": "^3.637.0",
-    "@aws-sdk/client-lambda": "^3.637.0",
-    "@aws-sdk/client-s3": "^3.637.0",
-    "@aws-sdk/client-ssm": "^3.637.0",
-    "@aws-sdk/credential-providers": "^3.637.0",
-    "@aws-sdk/lib-storage": "^3.637.0",
-    "@smithy/util-retry": "^3.0.3",
+    "@aws-sdk/client-cloudformation": "^3.983.0",
+    "@aws-sdk/client-cloudwatch-logs": "^3.983.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.983.0",
+    "@aws-sdk/client-ec2": "^3.983.0",
+    "@aws-sdk/client-firehose": "^3.983.0",
+    "@aws-sdk/client-glue": "^3.983.0",
+    "@aws-sdk/client-iam": "^3.983.0",
+    "@aws-sdk/client-iot": "^3.983.0",
+    "@aws-sdk/client-kinesis-analytics": "^3.983.0",
+    "@aws-sdk/client-lambda": "^3.983.0",
+    "@aws-sdk/client-s3": "^3.983.0",
+    "@aws-sdk/client-ssm": "^3.983.0",
+    "@aws-sdk/credential-providers": "^3.983.0",
+    "@aws-sdk/lib-storage": "^3.983.0",
+    "@smithy/util-retry": "^4.2.5",
     "archiver": "^7.0.1",
     "bunyan": "^1.8.15",
     "bunyan-prettystream": "^0.1.3",
     "generate-password": "^1.7.1",
     "inquirer": "^8.2.6",
-    "mime-types": "^2.1.35"
+    "mime-types": "^3.0.2"
   },
   "devDependencies": {
-    "aws-sdk-client-mock": "^4.0.1",
-    "chai": "^4.5.0",
-    "chai-as-promised": "^7.1.1",
-    "mocha": "^10.7.3",
-    "rewire": "^6.0.0"
+    "aws-sdk-client-mock": "^4.1.0",
+    "chai": "^6.2.2",
+    "mocha": "^11.7.5",
+    "rewire": "^9.0.1"
   }
 }

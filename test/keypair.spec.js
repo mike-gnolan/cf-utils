@@ -1,6 +1,5 @@
 const _chai = require("chai");
 const expect = _chai.expect;
-_chai.use(require('chai-as-promised'));
 const rewire = require("rewire");
 const { mockClient } = require("aws-sdk-client-mock");
 const { mockConfig, mockS3 } = require("./stubs");
@@ -41,7 +40,7 @@ describe("src/keypair", () => {
   describe("create keypair", () => {
 
     // createKeyPair
-    it("creates keypair", async () => {
+    it("creates keypair", (done) => {
       const name = "my-keypair";
 
       // assert and resolve GetTableCommand
@@ -57,14 +56,19 @@ describe("src/keypair", () => {
       });
 
       // Create key pair without saving to S3
-      return expect(keypair.createKeyPair(name)).to.eventually.deep.equal({
-        KeyName: name,
-        KeyMaterial: "key-material"
-      });
+      keypair.createKeyPair(name)
+        .then(result => {
+          expect(result).to.deep.equal({
+            KeyName: name,
+            KeyMaterial: "key-material"
+          });
+          done();
+        })
+        .catch(done);
     });
 
     // createKeyPair
-    it("creates keypair and saves to S3", async () => {
+    it("creates keypair and saves to S3", (done) => {
       const name = "my-keypair";
       const bucketName = "my-s3-bucket";
       const key = "bucket-key";
@@ -82,14 +86,19 @@ describe("src/keypair", () => {
       });
 
       // Create key pair and save to S3
-      return expect(keypair.createKeyPair(name, bucketName, key)).to.eventually.deep.equal({});
+      keypair.createKeyPair(name, bucketName, key)
+        .then(result => {
+          expect(result).to.deep.equal({});
+          done();
+        })
+        .catch(done);
     });
   });
 
   // deleteKeyPair
   describe("delete keypair", () => {
 
-    it("deletes keypair", async () => {
+    it("deletes keypair", (done) => {
       const name = "my-keypair";
 
       // assert and resolve DeleteKeyPairCommand
@@ -105,13 +114,18 @@ describe("src/keypair", () => {
       });
 
       // Create key pair without saving to S3
-      return expect(keypair.deleteKeyPair(name)).to.eventually.deep.equal({
-        Return: true,
-        KeyPairId: name,
-      });
+      keypair.deleteKeyPair(name)
+        .then(result => {
+          expect(result).to.deep.equal({
+            Return: true,
+            KeyPairId: name,
+          });
+          done();
+        })
+        .catch(done);
     });
 
-    it("deletes keypair and deletes from S3", async () => {
+    it("deletes keypair and deletes from S3", (done) => {
       const name = "my-keypair";
       const bucketName = "my-s3-bucket";
       const key = "bucket-key";
@@ -129,13 +143,18 @@ describe("src/keypair", () => {
       });
 
       // Create key pair without saving to S3
-      return expect(keypair.deleteKeyPair(name, bucketName, key)).to.eventually.deep.equal({
-        Deleted: [{
-          DeleteMarker: true,
-          DeleteMarkerVersionId: undefined,
-          Key: key
-        }]
-      });
+      keypair.deleteKeyPair(name, bucketName, key)
+        .then(result => {
+          expect(result).to.deep.equal({
+            Deleted: [{
+              DeleteMarker: true,
+              DeleteMarkerVersionId: undefined,
+              Key: key
+            }]
+          });
+          done();
+        })
+        .catch(done);
     });
   });
 

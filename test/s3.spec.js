@@ -1,6 +1,5 @@
 const _chai = require("chai");
 const expect = _chai.expect;
-_chai.use(require('chai-as-promised'));
 const rewire = require("rewire");
 const { mockClient } = require("aws-sdk-client-mock");
 const { mockConfig, mockFs } = require("./stubs");
@@ -45,7 +44,7 @@ describe("src/s3", () => {
   });
 
   // putS3Object
-  it("puts S3 object", async () => {
+  it("puts S3 object", (done) => {
     const params = {
       Bucket: "dest-bucket",
       Key: "dest-key",
@@ -61,11 +60,13 @@ describe("src/s3", () => {
     process.env.AWS_REGION = region;
 
     // Put object
-    return expect(s3.putS3Object(params)).to.eventually.be.fulfilled;
+    s3.putS3Object(params)
+      .then(() => done())
+      .catch(done);
   });
 
   // listObjects
-  it("lists objects", async () => {
+  it("lists objects", (done) => {
     const params = {
       Bucket: "bucketName",
       ContinuationToken: "continuationToken"
@@ -85,20 +86,25 @@ describe("src/s3", () => {
       };
     });
 
-    return expect(s3.listObjects(params.Bucket, params.ContinuationToken)).to.eventually.deep.equal({
-      IsTruncated: true,
-      Contents: [
-        {
-          Key: "object_key",
-        },
-      ],
-      ContinuationToken: params.ContinuationToken,
-      NextContinuationToken: "NextContinuationToken",
-    });
+    s3.listObjects(params.Bucket, params.ContinuationToken)
+      .then(result => {
+        expect(result).to.deep.equal({
+          IsTruncated: true,
+          Contents: [
+            {
+              Key: "object_key",
+            },
+          ],
+          ContinuationToken: params.ContinuationToken,
+          NextContinuationToken: "NextContinuationToken",
+        });
+        done();
+      })
+      .catch(done);
   });
 
   // listObjectVersions
-  it("lists object versions", async () => {
+  it("lists object versions", (done) => {
     const params = {
       Bucket: "bucketName",
       Prefix: "key",
@@ -131,11 +137,16 @@ describe("src/s3", () => {
       return expected;
     });
 
-    return expect(s3.listObjectVersions(params.Bucket, params.Prefix, params.KeyMarker, params.VersionIdMarker)).to.eventually.deep.equal(expected);
+    s3.listObjectVersions(params.Bucket, params.Prefix, params.KeyMarker, params.VersionIdMarker)
+      .then(result => {
+        expect(result).to.deep.equal(expected);
+        done();
+      })
+      .catch(done);
   });
 
   // deleteObjects
-  it("deletes objects", async () => {
+  it("deletes objects", (done) => {
     const params = {
       Bucket: "bucketName",
       Delete: {
@@ -165,11 +176,16 @@ describe("src/s3", () => {
       return expected;
     });
 
-    return expect(s3.deleteObjects(params.Bucket, params.Delete.Objects)).to.eventually.deep.equal(expected);
+    s3.deleteObjects(params.Bucket, params.Delete.Objects)
+      .then(result => {
+        expect(result).to.deep.equal(expected);
+        done();
+      })
+      .catch(done);
   });
 
   // deleteVersionedObjects
-  it("deletes versioned objects", async () => {
+  it("deletes versioned objects", (done) => {
     const params = {
       Bucket: "bucketName",
       Delete: {
@@ -238,11 +254,13 @@ describe("src/s3", () => {
     });
 
 
-    return expect(s3.deleteVersionedObjects(params.Bucket, params.Delete.Objects)).to.eventually.be.fulfilled;
+    s3.deleteVersionedObjects(params.Bucket, params.Delete.Objects)
+      .then(() => done())
+      .catch(done);
   });
 
   // emptyBucket
-  it("empties bucket", async () => {
+  it("empties bucket", (done) => {
     // Mock GetBucketVersioningCommand
     s3Mock.on(GetBucketVersioningCommand).callsFake(input => {
       expect(Object.keys(input)).to.have.members(["Bucket"]);
@@ -287,16 +305,16 @@ describe("src/s3", () => {
     });
 
     // Empty versioned bucket
-    await expect(s3.emptyBucket("versioned-bucket-name")).to.eventually.be.fulfilled;
-
-    // Empty un-versioned bucket
-    return expect(s3.emptyBucket("bucket-name")).to.eventually.be.fulfilled;
+    s3.emptyBucket("versioned-bucket-name")
+      .then(() => s3.emptyBucket("bucket-name"))
+      .then(() => done())
+      .catch(done);
   });
 
   // uploadDirectory
   describe("upload directory", () => {
 
-    it("uploads directory of files", async () => {
+    it("uploads directory of files", (done) => {
       const bucket = "bucket-name";
       const prefix = mockFs.ONLY_FILES_DIR;
 
@@ -310,10 +328,12 @@ describe("src/s3", () => {
         return {};
       });
 
-      return expect(s3.uploadDirectory(bucket, prefix)).to.eventually.be.fulfilled;
+      s3.uploadDirectory(bucket, prefix)
+        .then(() => done())
+        .catch(done);
     });
 
-    it("uploads directory of files and directory", async () => {
+    it("uploads directory of files and directory", (done) => {
       const bucket = "bucket-name";
       const prefix = mockFs.MIX_FILES_DIR;
 
@@ -327,19 +347,27 @@ describe("src/s3", () => {
         return {};
       });
 
-      return expect(s3.uploadDirectory(bucket, prefix)).to.eventually.be.fulfilled;
+      s3.uploadDirectory(bucket, prefix)
+        .then(() => done())
+        .catch(done);
     });
 
-    it("fails - no files in directory", async () => {
+    it("fails - no files in directory", (done) => {
       const bucket = "bucket-name";
       const prefix = mockFs.NO_FILES_DIR;
 
-      return expect(s3.uploadDirectory(bucket, prefix)).to.eventually.be.rejectedWith(`Folder \'${prefix}\' is empty or does not exist. Did you forget to build your application?`);
+      s3.uploadDirectory(bucket, prefix)
+        .then(() => done(new Error('Expected rejection')))
+        .catch(err => {
+          expect(err.message).to.equal(`Folder '${prefix}' is empty or does not exist. Did you forget to build your application?`);
+          done();
+        })
+        .catch(done);
     });
   });
 
   // uploadDirectoryAsZipFile
-  it("uploads directory as zip file", async () => {
+  it("uploads directory as zip file", (done) => {
     // bucketName, key, source, dest, name
     const bucket = "bucket-name";
     const key = "file.zip"
@@ -349,11 +377,16 @@ describe("src/s3", () => {
     s3Mock.on(CreateMultipartUploadCommand).resolves({ UploadId: '1' });
     s3Mock.on(UploadPartCommand).resolves({ ETag: '1' });
 
-    return expect(s3.uploadDirectoryAsZipFile(bucket, key, dir, dir, key)).to.eventually.deep.equal(`${mockFs.ONLY_FILES_DIR}/${key}`);
+    s3.uploadDirectoryAsZipFile(bucket, key, dir, dir, key)
+      .then(result => {
+        expect(result).to.deep.equal(`${mockFs.ONLY_FILES_DIR}/${key}`);
+        done();
+      })
+      .catch(done);
   });
 
   // putBucketNotificationConfiguration
-  it("puts bucket notification configuration", async () => {
+  it("puts bucket notification configuration", (done) => {
     const params = {
       Bucket: "bucket",
       NotificationConfiguration: {
@@ -378,16 +411,21 @@ describe("src/s3", () => {
       };
     });
 
-    return expect(s3.putBucketNotificationConfiguration(params)).to.eventually.deep.equal({
-      '$metadata': {
-          httpStatusCode: 200,
-          requestId: 'requestId',
-          extendedRequestId: 'extendedRequestId',
-          cfId: undefined,
-          attempts: 1,
-          totalRetryDelay: 0
-        }
-    });
+    s3.putBucketNotificationConfiguration(params)
+      .then(result => {
+        expect(result).to.deep.equal({
+          '$metadata': {
+            httpStatusCode: 200,
+            requestId: 'requestId',
+            extendedRequestId: 'extendedRequestId',
+            cfId: undefined,
+            attempts: 1,
+            totalRetryDelay: 0
+          }
+        });
+        done();
+      })
+      .catch(done);
   });
 
 });

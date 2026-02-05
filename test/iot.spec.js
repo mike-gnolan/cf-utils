@@ -1,6 +1,5 @@
 const _chai = require("chai");
 const expect = _chai.expect;
-_chai.use(require('chai-as-promised'));
 const rewire = require("rewire");
 const { mockClient } = require("aws-sdk-client-mock");
 const { mockConfig } = require("./stubs");
@@ -37,7 +36,7 @@ describe("src/iot", () => {
   });
 
   // updateIoTPolicies
-  it("updates IoT policies", async () => {
+  it("updates IoT policies", (done) => {
     const stackOutput = {
       FirstIoTPolicyTemplate: "FirstIoTPolicyTemplate",
       FirstIoTPolicy: "FirstIoTPolicy",
@@ -100,9 +99,13 @@ describe("src/iot", () => {
       return {};
     });
 
-    const result = await iot.updateIoTPolicies(stackOutput);
-    expect(result).to.have.lengthOf(2);
-    expect(Object.keys(result[0])).to.have.members(["policyArn", "policyDocument"]);
+    iot.updateIoTPolicies(stackOutput)
+      .then(result => {
+        expect(result).to.have.lengthOf(2);
+        expect(Object.keys(result[0])).to.have.members(["policyArn", "policyDocument"]);
+        done();
+      })
+      .catch(done);
   });
 
 });

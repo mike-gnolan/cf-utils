@@ -1,6 +1,5 @@
 const _chai = require("chai");
 const expect = _chai.expect;
-_chai.use(require('chai-as-promised'));
 const rewire = require("rewire");
 const { mockClient } = require("aws-sdk-client-mock");
 const { mockConfig, mockS3, mockFs, mockSpawn } = require("./stubs");
@@ -94,7 +93,7 @@ describe("src/cloudFormation", () => {
   // pollChangeSet
   describe("poll change set", () => {
 
-    it("fails to describe change set", async () => {
+    it("fails to describe change set", (done) => {
       const params_not_exists = {
         ChangeSetName: "ChangeSetName_DoesNotExist", StackName: "StackName_DoesNotExist"
       };
@@ -114,13 +113,20 @@ describe("src/cloudFormation", () => {
       });
 
       // Should not throw error
-      await expect(cloudFormation.pollChangeSet(params_not_exists)).to.eventually.be.fulfilled;
-
-      // Should throw error
-      await expect(cloudFormation.pollChangeSet(params_error)).to.eventually.be.rejectedWith("some other error");
+      cloudFormation.pollChangeSet(params_not_exists)
+        .then(() => {
+          // Should throw error
+          return cloudFormation.pollChangeSet(params_error);
+        })
+        .then(() => done(new Error('Expected rejection')))
+        .catch(err => {
+          expect(err.message).to.equal('some other error');
+          done();
+        })
+        .catch(done);
     });
 
-    it("polls change set - created / updated / deleted", async () => {
+    it("polls change set - created / updated / deleted", (done) => {
       // Mock DescribeChangeSetCommand
       cfMock.on(DescribeChangeSetCommand).callsFake(input => {
         expect(Object.keys(input)).to.have.members(["ChangeSetName", "StackName"]);
@@ -132,22 +138,28 @@ describe("src/cloudFormation", () => {
       });
 
       // CREATE_COMPLETE
-      let res = await cloudFormation.pollChangeSet({ ChangeSetName: "CREATE_COMPLETE", StackName: "StackName" });
-      expect(Object.keys(res)).to.have.members(["ChangeSetName", "StackName", "Status"]);
-      expect(res.Status).to.eql("CREATE_COMPLETE");
-
-      // UPDATE_COMPLETE
-      res = await cloudFormation.pollChangeSet({ ChangeSetName: "UPDATE_COMPLETE", StackName: "StackName" });
-      expect(Object.keys(res)).to.have.members(["ChangeSetName", "StackName", "Status"]);
-      expect(res.Status).to.eql("UPDATE_COMPLETE");
-
-      // DELETE_COMPLETE
-      res = await cloudFormation.pollChangeSet({ ChangeSetName: "DELETE_COMPLETE", StackName: "StackName" })
-      expect(Object.keys(res)).to.have.members(["ChangeSetName", "StackName", "Status"]);
-      expect(res.Status).to.eql("DELETE_COMPLETE");
+      cloudFormation.pollChangeSet({ ChangeSetName: "CREATE_COMPLETE", StackName: "StackName" })
+        .then(res => {
+          expect(Object.keys(res)).to.have.members(["ChangeSetName", "StackName", "Status"]);
+          expect(res.Status).to.eql("CREATE_COMPLETE");
+          // UPDATE_COMPLETE
+          return cloudFormation.pollChangeSet({ ChangeSetName: "UPDATE_COMPLETE", StackName: "StackName" });
+        })
+        .then(res => {
+          expect(Object.keys(res)).to.have.members(["ChangeSetName", "StackName", "Status"]);
+          expect(res.Status).to.eql("UPDATE_COMPLETE");
+          // DELETE_COMPLETE
+          return cloudFormation.pollChangeSet({ ChangeSetName: "DELETE_COMPLETE", StackName: "StackName" });
+        })
+        .then(res => {
+          expect(Object.keys(res)).to.have.members(["ChangeSetName", "StackName", "Status"]);
+          expect(res.Status).to.eql("DELETE_COMPLETE");
+          done();
+        })
+        .catch(done);
     });
 
-    it("polls change set - failed", async () => {
+    it("polls change set - failed", (done) => {
       // Reasons for failure
       let reasons = [
         "No updates are to be performed",
@@ -167,16 +179,24 @@ describe("src/cloudFormation", () => {
       });
 
       // FAILED - No updates are to be performed
-      await expect(cloudFormation.pollChangeSet({ ChangeSetName: "ChangeSetName", StackName: "StackName" })).to.eventually.be.fulfilled;
-
-      // FAILED - didn't contain changes
-      await expect(cloudFormation.pollChangeSet({ ChangeSetName: "ChangeSetName", StackName: "StackName" })).to.eventually.be.fulfilled;
-
-      // FAILED - Some other creation error
-      await expect(cloudFormation.pollChangeSet({ ChangeSetName: "ChangeSetName", StackName: "StackName" })).to.eventually.be.rejectedWith("Changeset creation failed");
+      cloudFormation.pollChangeSet({ ChangeSetName: "ChangeSetName", StackName: "StackName" })
+        .then(() => {
+          // FAILED - didn't contain changes
+          return cloudFormation.pollChangeSet({ ChangeSetName: "ChangeSetName", StackName: "StackName" });
+        })
+        .then(() => {
+          // FAILED - Some other creation error
+          return cloudFormation.pollChangeSet({ ChangeSetName: "ChangeSetName", StackName: "StackName" });
+        })
+        .then(() => done(new Error('Expected rejection')))
+        .catch(err => {
+          expect(err.message).to.equal('Changeset creation failed');
+          done();
+        })
+        .catch(done);
     });
 
-    it("polls change set - recursive", async () => {
+    it("polls change set - recursive", (done) => {
       // Statuses to cycle through
       let statuses = [
         "CREATE_PENDING",
@@ -194,15 +214,19 @@ describe("src/cloudFormation", () => {
         };
       });
 
-      await expect(cloudFormation.pollChangeSet({ ChangeSetName: "ChangeSetName", StackName: "StackName" })).to.eventually.be.fulfilled;
-      expect(statuses).to.have.lengthOf(0);
+      cloudFormation.pollChangeSet({ ChangeSetName: "ChangeSetName", StackName: "StackName" })
+        .then(() => {
+          expect(statuses).to.have.lengthOf(0);
+          done();
+        })
+        .catch(done);
     });
   });
 
   // pollStack
   describe("poll stack", () => {
 
-    it("fails to describe stack", async () => {
+    it("fails to describe stack", (done) => {
       const params_not_exists = { StackName: "StackName_DoesNotExist" };
       const params_error = { StackName: "StackName_Error" };
 
@@ -218,13 +242,20 @@ describe("src/cloudFormation", () => {
       });
 
       // Should not throw error
-      await expect(cloudFormation.pollStack(params_not_exists)).to.eventually.be.fulfilled;
-
-      // Should throw error
-      await expect(cloudFormation.pollStack(params_error)).to.eventually.be.rejectedWith("some other error");
+      cloudFormation.pollStack(params_not_exists)
+        .then(() => {
+          // Should throw error
+          return cloudFormation.pollStack(params_error);
+        })
+        .then(() => done(new Error('Expected rejection')))
+        .catch(err => {
+          expect(err.message).to.equal('some other error');
+          done();
+        })
+        .catch(done);
     });
 
-    it("polls stack - created / updated", async () => {
+    it("polls stack - created / updated", (done) => {
       // Statues
       let statuses = [
         "CREATE_COMPLETE",
@@ -243,22 +274,26 @@ describe("src/cloudFormation", () => {
       });
 
       // CREATE_COMPLETE
-      let res = await cloudFormation.pollStack({ StackName: "StackName1" });
-      expect(Object.keys(res)).to.have.members(["Stacks"]);
-      expect(res.Stacks).to.have.lengthOf(1);
-      expect(res.Stacks[0]).to.eql({ StackName: "StackName1", StackStatus: "CREATE_COMPLETE" });
-
-      // UPDATE_COMPLETE
-      res = await cloudFormation.pollStack({ StackName: "StackName2" });
-      expect(Object.keys(res)).to.have.members(["Stacks"]);
-      expect(res.Stacks).to.have.lengthOf(1);
-      expect(res.Stacks[0]).to.eql({ StackName: "StackName2", StackStatus: "UPDATE_COMPLETE" });
-
-      // Expect all statuses to have been used
-      expect(statuses).to.have.lengthOf(0);
+      cloudFormation.pollStack({ StackName: "StackName1" })
+        .then(res => {
+          expect(Object.keys(res)).to.have.members(["Stacks"]);
+          expect(res.Stacks).to.have.lengthOf(1);
+          expect(res.Stacks[0]).to.eql({ StackName: "StackName1", StackStatus: "CREATE_COMPLETE" });
+          // UPDATE_COMPLETE
+          return cloudFormation.pollStack({ StackName: "StackName2" });
+        })
+        .then(res => {
+          expect(Object.keys(res)).to.have.members(["Stacks"]);
+          expect(res.Stacks).to.have.lengthOf(1);
+          expect(res.Stacks[0]).to.eql({ StackName: "StackName2", StackStatus: "UPDATE_COMPLETE" });
+          // Expect all statuses to have been used
+          expect(statuses).to.have.lengthOf(0);
+          done();
+        })
+        .catch(done);
     });
 
-    it("polls stack - failed", async () => {
+    it("polls stack - failed", (done) => {
       // Statues
       let statuses = [
         "ROLLBACK_COMPLETE",
@@ -279,15 +314,30 @@ describe("src/cloudFormation", () => {
         };
       });
 
-      for (let i = 0, length = statuses.length; i < length; i++) {
-        await expect(cloudFormation.pollStack({ StackName: "StackName" })).to.eventually.be.rejectedWith("Stack operation failed");
-      }
+      const length = statuses.length;
+      let count = 0;
 
-      // Expect all statuses to have been used
-      expect(statuses).to.have.lengthOf(0);
+      const checkNext = () => {
+        if (count < length) {
+          cloudFormation.pollStack({ StackName: "StackName" })
+            .then(() => done(new Error('Expected rejection')))
+            .catch(err => {
+              expect(err.message).to.equal('Stack operation failed');
+              count++;
+              checkNext();
+            })
+            .catch(done);
+        } else {
+          // Expect all statuses to have been used
+          expect(statuses).to.have.lengthOf(0);
+          done();
+        }
+      };
+
+      checkNext();
     });
 
-    it("polls stack - recursive", async () => {
+    it("polls stack - recursive", (done) => {
       // Statues
       let statuses = [
         "CREATE_IN_PROGRESS",
@@ -308,10 +358,13 @@ describe("src/cloudFormation", () => {
         };
       });
 
-      await expect(cloudFormation.pollStack({ StackName: "StackName" })).to.eventually.be.fulfilled;
-
-      // Expect all statuses to have been used
-      expect(statuses).to.have.lengthOf(0);
+      cloudFormation.pollStack({ StackName: "StackName" })
+        .then(() => {
+          // Expect all statuses to have been used
+          expect(statuses).to.have.lengthOf(0);
+          done();
+        })
+        .catch(done);
     });
 
   });
@@ -319,7 +372,7 @@ describe("src/cloudFormation", () => {
   // createStack
   describe("create stack", () => {
 
-    it("creates stack", async () => {
+    it("creates stack", (done) => {
       // Statues
       let statuses = [
         "CREATE_IN_PROGRESS",
@@ -355,15 +408,17 @@ describe("src/cloudFormation", () => {
       });
 
       // Create stack
-      await expect(cloudFormation.createStack(params)).to.eventually.deep.equal(
-        { Stacks: [{ StackName: params.StackName, StackStatus: "CREATE_COMPLETE" }] }
-      );
-
-      // Expect all statuses to have been used
-      expect(statuses).to.have.lengthOf(0);
+      cloudFormation.createStack(params)
+        .then(result => {
+          expect(result).to.deep.equal({ Stacks: [{ StackName: params.StackName, StackStatus: "CREATE_COMPLETE" }] });
+          // Expect all statuses to have been used
+          expect(statuses).to.have.lengthOf(0);
+          done();
+        })
+        .catch(done);
     });
 
-    it("fails to create stack", async () => {
+    it("fails to create stack", (done) => {
       // Statues
       let statuses = [
         "CREATE_IN_PROGRESS",
@@ -399,17 +454,22 @@ describe("src/cloudFormation", () => {
       });
 
       // Create stack - should fail
-      await expect(cloudFormation.createStack(params)).to.eventually.be.rejectedWith("Stack operation failed");
-
-      // Expect all statuses to have been used
-      expect(statuses).to.have.lengthOf(0);
+      cloudFormation.createStack(params)
+        .then(() => done(new Error('Expected rejection')))
+        .catch(err => {
+          expect(err.message).to.equal('Stack operation failed');
+          // Expect all statuses to have been used
+          expect(statuses).to.have.lengthOf(0);
+          done();
+        })
+        .catch(done);
     });
   });
 
   // updateStack
   describe("update stack", () => {
 
-    it("updates stack", async () => {
+    it("updates stack", (done) => {
       // Statues
       let statuses = [
         "UPDATE_IN_PROGRESS",
@@ -440,14 +500,16 @@ describe("src/cloudFormation", () => {
       });
 
       // Update stack
-      await expect(cloudFormation.updateStack(params)).to.eventually.deep.equal(
-        { Stacks: [{ StackName: params.StackName, StackStatus: "UPDATE_COMPLETE" }] }
-      );
-
-      expect(statuses).to.have.lengthOf(0);
+      cloudFormation.updateStack(params)
+        .then(result => {
+          expect(result).to.deep.equal({ Stacks: [{ StackName: params.StackName, StackStatus: "UPDATE_COMPLETE" }] });
+          expect(statuses).to.have.lengthOf(0);
+          done();
+        })
+        .catch(done);
     });
 
-    it("updates stack - no changes", async () => {
+    it("updates stack - no changes", (done) => {
       // Statues
       let statuses = [
         "UPDATE_IN_PROGRESS",
@@ -478,14 +540,16 @@ describe("src/cloudFormation", () => {
       });
 
       // Update stack
-      await expect(cloudFormation.updateStack(params)).to.eventually.deep.equal(
-        { Stacks: [{ StackName: params.StackName, StackStatus: "UPDATE_COMPLETE" }] }
-      );
-
-      expect(statuses).to.have.lengthOf(0);
+      cloudFormation.updateStack(params)
+        .then(result => {
+          expect(result).to.deep.equal({ Stacks: [{ StackName: params.StackName, StackStatus: "UPDATE_COMPLETE" }] });
+          expect(statuses).to.have.lengthOf(0);
+          done();
+        })
+        .catch(done);
     });
 
-    it("fails to update stack - update failed", async () => {
+    it("fails to update stack - update failed", (done) => {
       // Statues
       let statuses = [
         "UPDATE_IN_PROGRESS",
@@ -516,12 +580,17 @@ describe("src/cloudFormation", () => {
       });
 
       // Update stack - should fail
-      await expect(cloudFormation.updateStack(params)).to.eventually.be.rejectedWith("Stack operation failed");
-
-      expect(statuses).to.have.lengthOf(0);
+      cloudFormation.updateStack(params)
+        .then(() => done(new Error('Expected rejection')))
+        .catch(err => {
+          expect(err.message).to.equal('Stack operation failed');
+          expect(statuses).to.have.lengthOf(0);
+          done();
+        })
+        .catch(done);
     });
 
-    it("fails to update stack", async () => {
+    it("fails to update stack", (done) => {
       let reasons = [
         "No updates are to be performed",
         "Other thrown error"
@@ -547,17 +616,24 @@ describe("src/cloudFormation", () => {
       const mockPollStackRestore = cloudFormation.__set__("pollStack", mockPollStack);
       stubs.push({ restore: function() {return mockPollStackRestore();} });
 
-      await expect(cloudFormation.updateStack(params)).to.eventually.be.fulfilled;
-      await expect(cloudFormation.updateStack(params)).to.eventually.be.rejectedWith("Other thrown error");
-
-      expect(reasons).to.have.lengthOf(0);
+      cloudFormation.updateStack(params)
+        .then(() => {
+          return cloudFormation.updateStack(params);
+        })
+        .then(() => done(new Error('Expected rejection')))
+        .catch(err => {
+          expect(err.message).to.equal('Other thrown error');
+          expect(reasons).to.have.lengthOf(0);
+          done();
+        })
+        .catch(done);
     });
   });
 
   // upsertStack
   describe("upsert stack", () => {
 
-    it("fails to upsert stack - script does not exist", async () => {
+    it("fails to upsert stack - script does not exist", (done) => {
       const name = "StackName";
       const script = "/path/to/DoesNotExist.yaml";
       const parameters = {
@@ -568,10 +644,16 @@ describe("src/cloudFormation", () => {
       // review, s3Bucket, s3Prefix
       const options = {};
 
-      return expect(cloudFormation.upsertStack(name, script, parameters, options)).to.eventually.be.rejectedWith(`${script} does not exist!`);
+      cloudFormation.upsertStack(name, script, parameters, options)
+        .then(() => done(new Error('Expected rejection')))
+        .catch(err => {
+          expect(err.message).to.equal(`${script} does not exist!`);
+          done();
+        })
+        .catch(done);
     });
 
-    it("upserts stack - stack does not exist - create no transforms", async () => {
+    it("upserts stack - stack does not exist - create no transforms", (done) => {
       const name = "StackName";
       const script = "/path/to/script.yaml";
       const stackInputs = {
@@ -620,12 +702,15 @@ describe("src/cloudFormation", () => {
         };
       });
 
-      return expect(cloudFormation.upsertStack(name, script, stackInputs, options)).to.eventually.deep.equal(
-        { Stacks: [{ StackName: name, StackStatus: "CREATE_COMPLETE" }] }
-      );
+      cloudFormation.upsertStack(name, script, stackInputs, options)
+        .then(result => {
+          expect(result).to.deep.equal({ Stacks: [{ StackName: name, StackStatus: "CREATE_COMPLETE" }] });
+          done();
+        })
+        .catch(done);
     });
 
-    it("upserts stack - stack does not exist - create with transforms ", async () => {
+    it("upserts stack - stack does not exist - create with transforms ", (done) => {
       const name = "StackName";
       const script = "/path/to/script-Transform.yaml";
       const stackInputs = {
@@ -677,12 +762,15 @@ describe("src/cloudFormation", () => {
         };
       });
 
-      return expect(cloudFormation.upsertStack(name, script, stackInputs, options)).to.eventually.deep.equal(
-        { Stacks: [{ StackName: name, StackStatus: "CREATE_COMPLETE" }] }
-      );
+      cloudFormation.upsertStack(name, script, stackInputs, options)
+        .then(result => {
+          expect(result).to.deep.equal({ Stacks: [{ StackName: name, StackStatus: "CREATE_COMPLETE" }] });
+          done();
+        })
+        .catch(done);
     });
 
-    it("upserts stack - updating stack with transforms", async () => {
+    it("upserts stack - updating stack with transforms", (done) => {
       const name = "StackName";
       const script = "/path/to/script-Transform.yaml";
       const stackInputs = {
@@ -746,12 +834,15 @@ describe("src/cloudFormation", () => {
         return { StackId: `${name}-id`, }
       });
 
-      return expect(cloudFormation.upsertStack(name, script, stackInputs, options)).to.eventually.deep.equal(
-        { Stacks: [{ StackName: name, StackStatus: "UPDATE_COMPLETE" }] }
-      );
+      cloudFormation.upsertStack(name, script, stackInputs, options)
+        .then(result => {
+          expect(result).to.deep.equal({ Stacks: [{ StackName: name, StackStatus: "UPDATE_COMPLETE" }] });
+          done();
+        })
+        .catch(done);
     });
 
-    it("upserts stack - updating stack no transforms", async () => {
+    it("upserts stack - updating stack no transforms", (done) => {
       const name = "StackName";
       const script = "/path/to/script.yaml";
       const stackInputs = {
@@ -791,12 +882,15 @@ describe("src/cloudFormation", () => {
         return { StackId: `${name}-id`, }
       });
 
-      return expect(cloudFormation.upsertStack(name, script, stackInputs, options)).to.eventually.deep.equal(
-        { Stacks: [{ StackName: name, StackStatus: "UPDATE_COMPLETE" }] }
-      );
+      cloudFormation.upsertStack(name, script, stackInputs, options)
+        .then(result => {
+          expect(result).to.deep.equal({ Stacks: [{ StackName: name, StackStatus: "UPDATE_COMPLETE" }] });
+          done();
+        })
+        .catch(done);
     });
 
-    it("fails to upsert stack with review - user rejected", async () => {
+    it("fails to upsert stack with review - user rejected", (done) => {
       const name = "StackName";
       const script = "/path/to/script.yaml";
       const stackInputs = {
@@ -846,10 +940,16 @@ describe("src/cloudFormation", () => {
         };
       });
 
-      return expect(cloudFormation.upsertStack(name, script, stackInputs, options)).to.eventually.be.rejectedWith("Reviewer rejected stack update");
+      cloudFormation.upsertStack(name, script, stackInputs, options)
+        .then(() => done(new Error('Expected rejection')))
+        .catch(err => {
+          expect(err.message).to.equal('Reviewer rejected stack update');
+          done();
+        })
+        .catch(done);
     });
 
-    it("upserts stack - with review", async () => {
+    it("upserts stack - with review", (done) => {
       const name = "StackName";
       const script = "/path/to/script.yaml";
       const stackInputs = {
@@ -920,16 +1020,19 @@ describe("src/cloudFormation", () => {
         return { StackId: `${name}-id`, }
       });
 
-      return expect(cloudFormation.upsertStack(name, script, stackInputs, options)).to.eventually.deep.equal(
-        { Stacks: [{ StackName: name, StackStatus: "CREATE_COMPLETE" }] }
-      );
+      cloudFormation.upsertStack(name, script, stackInputs, options)
+        .then(result => {
+          expect(result).to.deep.equal({ Stacks: [{ StackName: name, StackStatus: "CREATE_COMPLETE" }] });
+          done();
+        })
+        .catch(done);
     });
   });
 
   // createChangeSet
   describe("create change set", () => {
 
-    it("creates change set", async () => {
+    it("creates change set", (done) => {
       // Statues
       let statuses = [
         "CREATE_IN_PROGRESS",
@@ -960,16 +1063,20 @@ describe("src/cloudFormation", () => {
       });
 
       // Create change set
-      await expect(cloudFormation.createChangeSet(params)).to.eventually.deep.equal({
-        ChangeSetName: params.ChangeSetName,
-        StackName: params.StackName,
-        Status: "CREATE_COMPLETE",
-      });
-
-      expect(statuses).to.have.lengthOf(0);
+      cloudFormation.createChangeSet(params)
+        .then(result => {
+          expect(result).to.deep.equal({
+            ChangeSetName: params.ChangeSetName,
+            StackName: params.StackName,
+            Status: "CREATE_COMPLETE",
+          });
+          expect(statuses).to.have.lengthOf(0);
+          done();
+        })
+        .catch(done);
     });
 
-    it("fails to create change set", async () => {
+    it("fails to create change set", (done) => {
       // Statues
       let statuses = [
         "CREATE_IN_PROGRESS",
@@ -1004,15 +1111,20 @@ describe("src/cloudFormation", () => {
       });
 
       // Create change set
-      await expect(cloudFormation.createChangeSet(params)).to.eventually.be.rejectedWith("Changeset creation failed");
-
-      expect(statuses).to.have.lengthOf(0);
+      cloudFormation.createChangeSet(params)
+        .then(() => done(new Error('Expected rejection')))
+        .catch(err => {
+          expect(err.message).to.equal('Changeset creation failed');
+          expect(statuses).to.have.lengthOf(0);
+          done();
+        })
+        .catch(done);
     });
   });
 
   // deleteChangeSet
   describe("delete change set", () => {
-    it("deletes change set", async () => {
+    it("deletes change set", (done) => {
       const statuses = [
         "DELETE_IN_PROGRESS",
         "DELETE_COMPLETE"
@@ -1038,20 +1150,24 @@ describe("src/cloudFormation", () => {
         };
       });
 
-      await expect(cloudFormation.deleteChangeSet(params)).to.eventually.deep.equal({
-        ChangeSetName: params.ChangeSetName,
-        StackName: params.StackName,
-        Status: "DELETE_COMPLETE",
-      });
-
-      expect(statuses).to.have.lengthOf(0);
+      cloudFormation.deleteChangeSet(params)
+        .then(result => {
+          expect(result).to.deep.equal({
+            ChangeSetName: params.ChangeSetName,
+            StackName: params.StackName,
+            Status: "DELETE_COMPLETE",
+          });
+          expect(statuses).to.have.lengthOf(0);
+          done();
+        })
+        .catch(done);
     });
   });
 
   // deployStack
   describe("deploy stack", () => {
 
-    it("deploys stack", async () => {
+    it("deploys stack", (done) => {
       const name = "StackName";
       const script = "location/of/StackName.yaml";
       const parameters = [
@@ -1088,10 +1204,15 @@ describe("src/cloudFormation", () => {
       });
 
       // Deploy stack
-      return expect(cloudFormation.deployStack(name, script, parameters)).to.eventually.deep.equal(expected);
+      cloudFormation.deployStack(name, script, parameters)
+        .then(result => {
+          expect(result).to.deep.equal(expected);
+          done();
+        })
+        .catch(done);
     });
 
-    it("deploys stack - no changes to deploy", async () => {
+    it("deploys stack - no changes to deploy", (done) => {
       // mock console.log for this test to ignore output
       const consoleLogRestore = cloudFormation.__set__("console.log", () => { });
       stubs.push({ restore: function () { return consoleLogRestore(); } });
@@ -1135,10 +1256,15 @@ describe("src/cloudFormation", () => {
       });
 
       // Deploy stack
-      return expect(cloudFormation.deployStack(name, script, parameters)).to.eventually.deep.equal(expected);
+      cloudFormation.deployStack(name, script, parameters)
+        .then(result => {
+          expect(result).to.deep.equal(expected);
+          done();
+        })
+        .catch(done);
     });
 
-    it("fails to deploys stack - aws cli", async () => {
+    it("fails to deploys stack - aws cli", (done) => {
       // mock console.log for this test to ignore output
       const consoleLogRestore = cloudFormation.__set__("console.log", () => { });
       stubs.push({ restore: function () { return consoleLogRestore(); } });
@@ -1170,10 +1296,20 @@ describe("src/cloudFormation", () => {
       stubs.push({ restore: function () { return spawnRestore(); } });
 
       // Deploy stack
-      return expect(cloudFormation.deployStack(name, script, parameters)).to.eventually.be.rejectedWith("Stack deploy failed");
+      cloudFormation.deployStack(name, script, parameters)
+        .then(() => done(new Error('Expected rejection')))
+        .catch(err => {
+          try {
+            // The promise rejects with a string, not an Error object
+            expect(err).to.equal('Stack deploy failed');
+            done();
+          } catch (assertionError) {
+            done(assertionError);
+          }
+        });
     });
 
-    it("fails to deploy stack - describe stack", async () => {
+    it("fails to deploy stack - describe stack", (done) => {
       const name = "StackName";
       const script = "location/of/StackName.yaml";
       const parameters = [
@@ -1199,14 +1335,20 @@ describe("src/cloudFormation", () => {
         throw new Error("some other error");
       });
 
-      return expect(cloudFormation.deployStack(name, script, parameters)).to.eventually.be.rejectedWith("some other error");
+      cloudFormation.deployStack(name, script, parameters)
+        .then(() => done(new Error('Expected rejection')))
+        .catch(err => {
+          expect(err.message).to.equal('some other error');
+          done();
+        })
+        .catch(done);
     });
   });
 
   // describeStack
   describe("describe stack", () => {
 
-    it("describes stack", async () => {
+    it("describes stack", (done) => {
       const expected = {
         StackName: "StackName",
         StackStatus: "DELETE_COMPLETE",
@@ -1218,24 +1360,35 @@ describe("src/cloudFormation", () => {
         return { Stacks: [expected] };
       });
 
-      await expect(cloudFormation.describeStack(expected.StackName)).to.eventually.deep.equal(expected);
+      cloudFormation.describeStack(expected.StackName)
+        .then(result => {
+          expect(result).to.deep.equal(expected);
+          done();
+        })
+        .catch(done);
     });
 
-    it("fails to describe stack", async () => {
+    it("fails to describe stack", (done) => {
       // Mock DescribeChangeSetCommand
       cfMock.on(DescribeStacksCommand).callsFake(input => {
         expect(input).to.eql({ StackName: "StackName" });
         throw new Error("some other error");
       });
 
-      return expect(cloudFormation.describeStack("StackName")).to.eventually.be.rejectedWith("some other error");
+      cloudFormation.describeStack("StackName")
+        .then(() => done(new Error('Expected rejection')))
+        .catch(err => {
+          expect(err.message).to.equal('some other error');
+          done();
+        })
+        .catch(done);
     });
   });
 
   // describeOutput
   describe("describe output", () => {
 
-    it("describes output", async () => {
+    it("describes output", (done) => {
       const expected = {
         Property1: "Value1",
         Property2: "Value2",
@@ -1258,13 +1411,18 @@ describe("src/cloudFormation", () => {
         };
       });
 
-      await expect(cloudFormation.describeOutput("StackName")).to.eventually.deep.equal(expected);
+      cloudFormation.describeOutput("StackName")
+        .then(result => {
+          expect(result).to.deep.equal(expected);
+          done();
+        })
+        .catch(done);
     });
   });
 
   // extractOutput
   describe("extract output", () => {
-    it("extracts output", async () => {
+    it("extracts output", () => {
       const stack = {
         Outputs: [
           { OutputKey: "Property1", OutputValue: "Value1" },
@@ -1285,7 +1443,7 @@ describe("src/cloudFormation", () => {
   // deleteStack
   describe("delete stack", () => {
 
-    it("deletes stack", async () => {
+    it("deletes stack", (done) => {
       let statuses = [
         "CREATE_COMPLETE",
         "DELETE_IN_PROGRESS"
@@ -1322,12 +1480,15 @@ describe("src/cloudFormation", () => {
         return {};
       });
 
-      await expect(cloudFormation.deleteStack(params.StackName)).to.eventually.be.fulfilled;
-
-      expect(statuses).to.have.lengthOf(0);
+      cloudFormation.deleteStack(params.StackName)
+        .then(() => {
+          expect(statuses).to.have.lengthOf(0);
+          done();
+        })
+        .catch(done);
     });
 
-    it("deletes stack and empties bucket", async () => {
+    it("deletes stack and empties bucket", (done) => {
       let statuses = [
         "CREATE_COMPLETE",
         "DELETE_IN_PROGRESS"
@@ -1365,12 +1526,15 @@ describe("src/cloudFormation", () => {
         return {};
       });
 
-      await expect(cloudFormation.deleteStack(params.StackName)).to.eventually.be.fulfilled;
-
-      expect(statuses).to.have.lengthOf(0);
+      cloudFormation.deleteStack(params.StackName)
+        .then(() => {
+          expect(statuses).to.have.lengthOf(0);
+          done();
+        })
+        .catch(done);
     });
 
-    it("stack already deleted", async () => {
+    it("stack already deleted", (done) => {
       const params = { StackName: "StackName" };
 
       // Mock DescribeChangeSetCommand
@@ -1379,10 +1543,12 @@ describe("src/cloudFormation", () => {
         throw new Error("does not exist");
       });
 
-      return expect(cloudFormation.deleteStack(params.StackName)).to.eventually.be.fulfilled;
+      cloudFormation.deleteStack(params.StackName)
+        .then(() => done())
+        .catch(done);
     });
 
-    it("fails to delete stack when describing", async () => {
+    it("fails to delete stack when describing", (done) => {
       const params = { StackName: "StackName" };
 
       // Mock DescribeChangeSetCommand
@@ -1391,7 +1557,13 @@ describe("src/cloudFormation", () => {
         throw new Error("some other error");
       });
 
-      return expect(cloudFormation.deleteStack(params.StackName)).to.eventually.be.rejectedWith("some other error");
+      cloudFormation.deleteStack(params.StackName)
+        .then(() => done(new Error('Expected rejection')))
+        .catch(err => {
+          expect(err.message).to.equal('some other error');
+          done();
+        })
+        .catch(done);
     });
   });
 

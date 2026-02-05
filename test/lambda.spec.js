@@ -1,6 +1,5 @@
 const _chai = require("chai");
 const expect = _chai.expect;
-_chai.use(require('chai-as-promised'));
 const rewire = require("rewire");
 const { mockClient } = require("aws-sdk-client-mock");
 const { mockConfig } = require("./stubs");
@@ -36,7 +35,7 @@ describe("src/lambda", () => {
   });
 
   // listFunctions
-  it("lists functions", async () => {
+  it("lists functions", (done) => {
     const filter = "function-prefix";
     const continuationToken = "continuationToken";
     const expectedFunctions1 = [
@@ -77,19 +76,24 @@ describe("src/lambda", () => {
     });
 
     // Expect continuation and expectedFunctions1
-    let results = await lambda.listFunctions(filter);
-    expect(Object.keys(results)).to.have.members(["NextMarker", "Functions"]);
-    expect(results.NextMarker).to.eql(continuationToken);
-    expect(results.Functions).to.eql(expectedFunctions1);
-
-    // Expect continuation and expectedFunctions2
-    results = await lambda.listFunctions(filter, continuationToken);
-    expect(Object.keys(results)).to.have.members(["Functions"]);
-    expect(results.Functions).to.eql(expectedFunctions2);
+    lambda.listFunctions(filter)
+      .then(results => {
+        expect(Object.keys(results)).to.have.members(["NextMarker", "Functions"]);
+        expect(results.NextMarker).to.eql(continuationToken);
+        expect(results.Functions).to.eql(expectedFunctions1);
+        // Expect continuation and expectedFunctions2
+        return lambda.listFunctions(filter, continuationToken);
+      })
+      .then(results => {
+        expect(Object.keys(results)).to.have.members(["Functions"]);
+        expect(results.Functions).to.eql(expectedFunctions2);
+        done();
+      })
+      .catch(done);
   });
 
   // updateFunctionCode
-  it("updates function code", async () => {
+  it("updates function code", (done) => {
     const params = {
       FunctionName: "lambda-function"
     };
@@ -104,11 +108,16 @@ describe("src/lambda", () => {
       return expected;
     });
 
-    return expect(lambda.updateFunctionCode(params)).to.eventually.deep.equal(expected);
+    lambda.updateFunctionCode(params)
+      .then(result => {
+        expect(result).to.deep.equal(expected);
+        done();
+      })
+      .catch(done);
   });
 
   // updateFunctionsCode
-  it("updates all functions code", async () => {
+  it("updates all functions code", (done) => {
     const filter = "function-prefix";
     const continuationToken = "continuationToken";
     const expectedFunctions1 = [
@@ -150,11 +159,13 @@ describe("src/lambda", () => {
       };
     });
 
-    return expect(lambda.updateFunctionsCode(filter, params)).to.eventually.be.fulfilled;
+    lambda.updateFunctionsCode(filter, params)
+      .then(() => done())
+      .catch(done);
   });
 
   // invokeFunction
-  it("invokes lambda function", async () => {
+  it("invokes lambda function", (done) => {
     const expectedInputObj = {
       FunctionName: "lambda-function-object",
       Payload: {
@@ -197,10 +208,17 @@ describe("src/lambda", () => {
     });
 
     // Invoke with input object
-    await expect(lambda.invokeFunction(expectedInputObj.FunctionName, expectedInputObj.Payload, expectedInputObj.ClientContext)).to.eventually.deep.equal(expectedResponse);
-
-    // Invoke with input JSON string
-    await expect(lambda.invokeFunction(expectedInputJson.FunctionName, expectedInputJson.Payload, expectedInputJson.ClientContext)).to.eventually.deep.equal(expectedResponse);
+    lambda.invokeFunction(expectedInputObj.FunctionName, expectedInputObj.Payload, expectedInputObj.ClientContext)
+      .then(result => {
+        expect(result).to.deep.equal(expectedResponse);
+        // Invoke with input JSON string
+        return lambda.invokeFunction(expectedInputJson.FunctionName, expectedInputJson.Payload, expectedInputJson.ClientContext);
+      })
+      .then(result => {
+        expect(result).to.deep.equal(expectedResponse);
+        done();
+      })
+      .catch(done);
   });
 
 });

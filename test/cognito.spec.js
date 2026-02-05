@@ -1,6 +1,5 @@
 const _chai = require("chai");
 const expect = _chai.expect;
-_chai.use(require('chai-as-promised'));
 const rewire = require("rewire");
 const { mockClient } = require("aws-sdk-client-mock");
 const { mockConfig } = require("./stubs");
@@ -37,7 +36,7 @@ describe("src/cognito", () => {
   });
 
   // Admin Create User
-  it("admin creates user", async () => {
+  it("admin creates user", (done) => {
     const poolId = "user-pool-id";
     const clientId = "client-id";
     const username = "cognito-username";
@@ -92,14 +91,18 @@ describe("src/cognito", () => {
       return {};
     });
 
-    const res = await cognito.adminCreateUser(poolId, clientId, username, attributes);
-    expect(Object.keys(res)).to.have.members(["user", "password"]);
-    expect(res.user).to.eql({ User: { Username: username } });
-    expect(res.password).to.be.lengthOf(12);
+    cognito.adminCreateUser(poolId, clientId, username, attributes)
+      .then(res => {
+        expect(Object.keys(res)).to.have.members(["user", "password"]);
+        expect(res.user).to.eql({ User: { Username: username } });
+        expect(res.password).to.be.lengthOf(12);
+        done();
+      })
+      .catch(done);
   });
 
   // Admin Update User Attributes
-  it("admin updates user attributes", async () => {
+  it("admin updates user attributes", (done) => {
     const poolId = "user-pool-id";
     const username = "cognito-username";
     const attributes = [
@@ -119,7 +122,12 @@ describe("src/cognito", () => {
       return {};
     });
 
-    return expect(cognito.adminUpdateUserAttributes(poolId, username, attributes)).to.eventually.deep.equal({});
+    cognito.adminUpdateUserAttributes(poolId, username, attributes)
+      .then(result => {
+        expect(result).to.deep.equal({});
+        done();
+      })
+      .catch(done);
   });
 
 });

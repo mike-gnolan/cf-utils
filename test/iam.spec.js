@@ -1,6 +1,5 @@
 const _chai = require("chai");
 const expect = _chai.expect;
-_chai.use(require('chai-as-promised'));
 const rewire = require("rewire");
 const { mockClient } = require("aws-sdk-client-mock");
 const { mockConfig } = require("./stubs");
@@ -35,7 +34,7 @@ describe("src/iam", () => {
   });
 
   // describeRole
-  it("describes role", async () => {
+  it("describes role", (done) => {
     const name = "iam-role-name";
 
     // assert and resolve GetRoleCommand
@@ -47,11 +46,16 @@ describe("src/iam", () => {
       return { Role: { RoleName: name } };
     });
 
-    return expect(iam.describeRole(name)).to.eventually.deep.equal({ Role: { RoleName: name } });
+    iam.describeRole(name)
+      .then(result => {
+        expect(result).to.deep.equal({ Role: { RoleName: name } });
+        done();
+      })
+      .catch(done);
   });
 
   // describeUser
-  it("describes user", async () => {
+  it("describes user", (done) => {
     const name = "iam-user-name";
 
     // assert and resolve GetRoleCommand
@@ -63,7 +67,12 @@ describe("src/iam", () => {
       return { User: { UserName: name } };
     });
 
-    return expect(iam.describeUser(name)).to.eventually.deep.equal({ User: { UserName: name } });
+    iam.describeUser(name)
+      .then(result => {
+        expect(result).to.deep.equal({ User: { UserName: name } });
+        done();
+      })
+      .catch(done);
   });
 
 });

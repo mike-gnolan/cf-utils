@@ -1,6 +1,5 @@
 const _chai = require("chai");
 const expect = _chai.expect;
-_chai.use(require('chai-as-promised'));
 const rewire = require("rewire");
 const { mockClient } = require("aws-sdk-client-mock");
 const { mockConfig } = require("./stubs");
@@ -35,7 +34,7 @@ describe("src/cloudWatch", () => {
   });
 
   // List Log Groups
-  it("lists log groups", async () => {
+  it("lists log groups", (done) => {
     const filter = "log-prefix";
     const expected = {
       logGroups: [{ logGroupName: "Log 1" }],
@@ -58,14 +57,21 @@ describe("src/cloudWatch", () => {
     });
 
     // Without continuationToken
-    await expect(cloudWatch.listLogGroups(filter)).to.eventually.deep.equal(expected);
-
-    // With continuationToken
-    return expect(cloudWatch.listLogGroups(filter, expected.nextToken)).to.eventually.deep.equal(expected);
+    cloudWatch.listLogGroups(filter)
+      .then(result => {
+        expect(result).to.deep.equal(expected);
+        // With continuationToken
+        return cloudWatch.listLogGroups(filter, expected.nextToken);
+      })
+      .then(result => {
+        expect(result).to.deep.equal(expected);
+        done();
+      })
+      .catch(done);
   });
 
   // Delete Log Group
-  it("deletes log group", async () => {
+  it("deletes log group", (done) => {
     const name = "log-group";
 
     cwMock.on(DeleteLogGroupCommand).callsFake(input => {
@@ -73,12 +79,16 @@ describe("src/cloudWatch", () => {
       return {};
     });
 
-    // Without continuationToken
-    return expect(cloudWatch.deleteLogGroup(name)).to.eventually.deep.equal({});
+    cloudWatch.deleteLogGroup(name)
+      .then(result => {
+        expect(result).to.deep.equal({});
+        done();
+      })
+      .catch(done);
   });
 
   // Delete Log Groups
-  it("deletes log groups", async () => {
+  it("deletes log groups", (done) => {
     const filter = "log-prefix";
     const expected_page1 = {
       logGroups: [{ logGroupName: `${filter}-group-1` }],
@@ -111,7 +121,9 @@ describe("src/cloudWatch", () => {
     });
 
     // Delete log groups
-    return expect(cloudWatch.deleteLogGroups(filter)).to.eventually.be.fulfilled;
+    cloudWatch.deleteLogGroups(filter)
+      .then(() => done())
+      .catch(done);
   });
 
 });
